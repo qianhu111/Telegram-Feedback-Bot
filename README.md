@@ -126,7 +126,7 @@ Bot 自动：
 1. 基于 Telegram entities 精确识别 @ 提及（不会被 `email@bot.com` 误触发）
 2. 校验长度 / 限速
 3. **单次调用** Workers AI → 同时返回分类 + 标签
-4. 写入 D1（feedback + tags 在单个 batch 中原子写入）
+4. 写入 D1（feedback 先入主表拿到真实 ID，再批量写 tags；tags 失败降级，不影响主反馈和通知）
 5. **并行**：推送管理员 + 群内 ✅ 回复
 6. 全部异步执行，webhook 立即响应，避免 Telegram 超时重试
 
@@ -157,7 +157,7 @@ Cloudflare Worker
        │
        ├─→ Workers AI (单次调用：分类 + 标签)
        │
-       ├─→ D1 batch (feedbacks + feedback_tags 原子写入)
+       ├─→ D1 写入 (feedbacks → 拿到 ID → batch 写 feedback_tags)
        │
        └─→ 并行通知
              ↓             ↓
@@ -180,7 +180,7 @@ Cloudflare Worker
 | AI 调用失败降级       | 自动落 `其它` 分类 + 空标签，反馈仍正常入库                |
 | Webhook 不阻塞     | `ctx.waitUntil` 让响应秒返回，避免 Telegram 重试    |
 | MarkdownV2 完整转义 | 覆盖全部特殊字符 `_*[]()~``>#+-=\|{}.!\`         |
-| 数据原子性           | feedback + tags 在单个 D1 batch 中事务提交       |
+| 数据降级           | 标签写入失败不阻断主反馈和通知                  |
 | 错误可观测           | 失败路径全部 `console.error`，可通过 wrangler tail 查看 |
 
 ---

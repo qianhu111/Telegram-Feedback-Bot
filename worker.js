@@ -194,30 +194,39 @@ ON CONFLICT(user_id) DO UPDATE SET last_at = excluded.last_at`
 
 async function saveFeedback(db, data) {
 
-  const stmts = [
-    db.prepare(
+  const insertResult = await db.prepare(
 `INSERT INTO feedbacks (
   user_id, username, first_name,
   group_id, group_name,
   category, content
 ) VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      data.user_id,
-      data.username,
-      data.first_name,
-      data.group_id,
-      data.group_name,
-      data.category,
-      data.content
-    ),
-    ...data.tags.map((tag) =>
-      db.prepare(
-        `INSERT INTO feedback_tags (feedback_id, tag) VALUES (last_insert_rowid(), ?)`
-      ).bind(tag)
-    )
-  ];
+  ).bind(
+    data.user_id,
+    data.username,
+    data.first_name,
+    data.group_id,
+    data.group_name,
+    data.category,
+    data.content
+  ).run();
 
-  await db.batch(stmts);
+  const feedbackId = insertResult.meta?.last_row_id;
+
+  if (feedbackId && data.tags.length > 0) {
+
+    const stmts = data.tags.map((tag) =>
+      db.prepare(
+        `INSERT INTO feedback_tags (feedback_id, tag) VALUES (?, ?)`
+      ).bind(feedbackId, tag)
+    );
+
+    // 标签失败降级：不阻断主流程和通知
+    try {
+      await db.batch(stmts);
+    } catch (err) {
+      console.error('save tags failed (non-fatal):', err);
+    }
+  }
 }
 
 
