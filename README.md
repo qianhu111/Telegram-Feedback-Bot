@@ -282,7 +282,7 @@ Telegram：
 轻量使用基本够用。
 
 ### 当前整体架构
-
+```
 Telegram Group
         ↓
      @bot
@@ -296,3 +296,4 @@ Cloudflare Worker
        D1
         ↓
 管理员通知
+```
